@@ -1,24 +1,29 @@
 // ============================================
-// Maths Pour BG — Local Admin Session (fallback when Supabase isn't configured)
+// Maths Pour BG — Local Admin Session (fallback when there's no real Supabase Auth session)
 // ============================================
+// Stored as a cookie (not just localStorage) so the server-side proxy (src/proxy.ts)
+// can also recognize it and let the local admin into /admin without a real Supabase user.
 
-const LOCAL_ADMIN_SESSION_KEY = "maths-pour-bg:local-admin-session";
+const LOCAL_ADMIN_COOKIE = "mpb_local_admin";
+const MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
-function canUseStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+function canUseDocument() {
+  return typeof document !== "undefined";
 }
 
 export function setLocalAdminSession() {
-  if (!canUseStorage()) return;
-  window.localStorage.setItem(LOCAL_ADMIN_SESSION_KEY, "true");
+  if (!canUseDocument()) return;
+  document.cookie = `${LOCAL_ADMIN_COOKIE}=1; path=/; max-age=${MAX_AGE_SECONDS}; SameSite=Lax`;
 }
 
 export function hasLocalAdminSession() {
-  if (!canUseStorage()) return false;
-  return window.localStorage.getItem(LOCAL_ADMIN_SESSION_KEY) === "true";
+  if (!canUseDocument()) return false;
+  return document.cookie
+    .split("; ")
+    .some((entry) => entry === `${LOCAL_ADMIN_COOKIE}=1`);
 }
 
 export function clearLocalAdminSession() {
-  if (!canUseStorage()) return;
-  window.localStorage.removeItem(LOCAL_ADMIN_SESSION_KEY);
+  if (!canUseDocument()) return;
+  document.cookie = `${LOCAL_ADMIN_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
 }

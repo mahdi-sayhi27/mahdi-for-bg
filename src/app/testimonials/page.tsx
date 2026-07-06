@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { PLACEHOLDER_TESTIMONIALS } from "@/constants";
 import { readManualTestimonials } from "@/lib/local-testimonials";
 import { createClientOrNull, hasValidSupabaseEnv } from "@/lib/supabase/client";
+import { mergeById } from "@/lib/utils";
 import type { Testimonial } from "@/types";
 
 export default function TestimonialsGalleryPage() {
@@ -38,7 +39,7 @@ export default function TestimonialsGalleryPage() {
         .eq("approved", true)
         .order("created_at", { ascending: false });
 
-      if (error || !data) {
+      if (error) {
         setSupabaseUnavailable(true);
         const manualTestimonials = readManualTestimonials();
         setTestimonials(manualTestimonials.length > 0 ? manualTestimonials : PLACEHOLDER_TESTIMONIALS);
@@ -46,7 +47,9 @@ export default function TestimonialsGalleryPage() {
         return;
       }
 
-      setTestimonials(data);
+      const manualTestimonials = readManualTestimonials().filter((t) => t.approved);
+      const combined = mergeById((data ?? []) as Testimonial[], manualTestimonials);
+      setTestimonials(combined.length > 0 ? combined : PLACEHOLDER_TESTIMONIALS);
       setLoading(false);
     };
 

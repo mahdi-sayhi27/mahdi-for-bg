@@ -17,7 +17,13 @@ const placeholderResultats: Resultat[] = [
   { id: "6", name: "Ines Chaabane", note: "19.5/20", rang: "1ère / 30", section: "BG2", annee_universitaire: "2025 - 2026", created_at: "2025-01-01T00:00:00.000Z" },
 ];
 
-export default function Resultats() {
+function splitName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length < 2) return { prenom: parts[0] ?? "", nom: "" };
+  return { prenom: parts[0], nom: parts.slice(1).join(" ") };
+}
+
+export default function ResultatsDetail() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const trackRef = useRef<HTMLDivElement>(null);
@@ -59,6 +65,7 @@ export default function Resultats() {
     };
   }, []);
 
+  // Mobile: auto-scroll the carousel from left to right, pausing while the user interacts.
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
@@ -104,34 +111,31 @@ export default function Resultats() {
   const scrollByCard = (direction: 1 | -1) => {
     const el = trackRef.current;
     if (!el) return;
-    const cardWidth = el.querySelector("[data-card]")?.clientWidth ?? 360;
-    el.scrollBy({ left: direction * (cardWidth + 32), behavior: "smooth" });
+    const cardWidth = el.querySelector("[data-card]")?.clientWidth ?? 320;
+    el.scrollBy({ left: direction * (cardWidth + 24), behavior: "smooth" });
   };
 
   return (
-    <section id="results" className="relative py-24 lg:py-32 px-4">
+    <section className="relative py-16 lg:py-20 px-4">
       <div className="max-w-7xl mx-auto">
-        {/* Section Header */}
         <motion.div
           ref={ref}
           initial={{ opacity: 0, y: 30 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center mb-12"
         >
           <span className="text-sky-400 text-sm font-semibold uppercase tracking-widest">
-            Résultats
+            Détails
           </span>
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mt-4 mb-4">
-            Des chiffres qui{" "}
-            <span className="text-gradient">parlent</span>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mt-4 mb-4">
+            Classement <span className="text-gradient">détaillé</span>
           </h2>
           <p className="text-gray-400 text-lg">
-            Les notes et classements réels de nos étudiants
+            Nom, prénom, note et rang de nos étudiants
           </p>
         </motion.div>
 
-        {/* Résultats — horizontal scroll carousel */}
         <div className="relative">
           <button
             type="button"
@@ -152,34 +156,35 @@ export default function Resultats() {
 
           <div
             ref={trackRef}
-            className="flex gap-4 sm:gap-6 lg:gap-8 overflow-x-auto lg:snap-x lg:snap-mandatory premium-scroll-x pb-6 px-1 -mx-1"
+            className="flex gap-4 sm:gap-6 overflow-x-auto lg:snap-x lg:snap-mandatory premium-scroll-x pb-6 px-1 -mx-1"
           >
-            {resultats.map((result, i) => (
-              <motion.div
-                key={result.id}
-                data-card
-                initial={{ opacity: 0, x: 40 }}
-                animate={isInView ? { opacity: 1, x: 0 } : {}}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="relative shrink-0 w-[220px] sm:w-[300px] lg:w-[360px] snap-center"
-              >
-                {/* Offset stacked-paper rectangle */}
-                <div
-                  className="absolute inset-0 rounded-2xl sm:rounded-3xl bg-[#29C8E6] translate-x-[10px] translate-y-[10px] sm:translate-x-[18px] sm:translate-y-[18px]"
-                  aria-hidden="true"
-                />
+            {resultats.map((result, i) => {
+              const { prenom, nom } = splitName(result.name);
+              return (
+                <motion.div
+                  key={result.id}
+                  data-card
+                  initial={{ opacity: 0, x: 40 }}
+                  animate={isInView ? { opacity: 1, x: 0 } : {}}
+                  transition={{ duration: 0.5, delay: i * 0.1 }}
+                  className="relative shrink-0 w-[200px] sm:w-[260px] lg:w-[300px] snap-center"
+                >
+                  <div
+                    className="absolute inset-0 rounded-2xl bg-[#29C8E6] translate-x-[8px] translate-y-[8px] sm:translate-x-[14px] sm:translate-y-[14px]"
+                    aria-hidden="true"
+                  />
 
-                {/* Card */}
-                <div className="relative h-full rounded-2xl sm:rounded-3xl border-2 border-[#29C8E6] bg-[#F5F2F2] p-6 sm:p-8 lg:p-10 flex flex-col items-center justify-center text-center shadow-[0_12px_35px_rgba(0,0,0,0.08)] transition-all duration-[350ms] ease-out hover:-translate-y-1.5 hover:shadow-[0_20px_45px_rgba(0,0,0,0.14)]">
-                  <h3 className="text-xl sm:text-3xl lg:text-[40px] font-bold leading-tight text-[#222222]">
-                    {result.name}
-                  </h3>
-                  <p className="mt-3 sm:mt-5 text-lg sm:text-2xl lg:text-[32px] font-bold text-[#F26A44]">
-                    Note : {result.note}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
+                  <div className="relative h-full rounded-2xl border-2 border-[#29C8E6] bg-[#F5F2F2] p-4 sm:p-6 shadow-[0_12px_35px_rgba(0,0,0,0.08)] transition-all duration-[350ms] ease-out hover:-translate-y-1.5 hover:shadow-[0_20px_45px_rgba(0,0,0,0.14)]">
+                    <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-[#333333]">
+                      <p><span className="text-[#8A8A8A]">Nom :</span> <span className="font-semibold">{nom || "—"}</span></p>
+                      <p><span className="text-[#8A8A8A]">Prénom :</span> <span className="font-semibold">{prenom || "—"}</span></p>
+                      <p><span className="text-[#8A8A8A]">Note :</span> <span className="font-bold text-[#F26A44]">{result.note}</span></p>
+                      <p><span className="text-[#8A8A8A]">Rang :</span> <span className="font-semibold">{result.rang}</span></p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </div>

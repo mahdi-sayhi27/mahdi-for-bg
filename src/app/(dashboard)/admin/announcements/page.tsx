@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import {
@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { createClientOrNull, hasValidSupabaseEnv } from "@/lib/supabase/client";
 import { fetchAllAnnouncements } from "@/lib/announcements";
-import { createManualAnnouncement, generateSlug, updateManualAnnouncements } from "@/lib/local-announcements";
+import { createManualAnnouncement, generateSlug, readManualAnnouncements, updateManualAnnouncements } from "@/lib/local-announcements";
 import { ANNOUNCEMENT_CATEGORIES, getCategoryConfig } from "@/constants";
 import RichTextEditor from "@/components/admin/rich-text-editor";
 import type { Announcement, AnnouncementCategory } from "@/types";
@@ -166,8 +166,23 @@ export default function AdminAnnouncementsPage() {
     return data.publicUrl;
   };
 
-  const resolveImage = async (file: File, folder: string) =>
-    supabase ? uploadToNewsBucket(file, folder) : readFileAsDataUrl(file);
+  // Tracks whether any image in this save had to fall back to a local data URL
+  // because the Supabase Storage upload failed (e.g. RLS rejected it — no real
+  // authenticated admin session yet). Read by handleSave to skip the doomed
+  // Supabase table write and go straight to the local store.
+  const lastImageUploadFailedRef = useRef(false);
+
+  const resolveImage = async (file: File, folder: string) => {
+    if (!supabase) return readFileAsDataUrl(file);
+
+    try {
+      return await uploadToNewsBucket(file, folder);
+    } catch (uploadError) {
+      console.warn("Supabase image upload failed, saving locally instead:", uploadError);
+      lastImageUploadFailedRef.current = true;
+      return readFileAsDataUrl(file);
+    }
+  };
 
   const enforceAnnouncementCapRemote = async () => {
     if (!supabase) return;
@@ -186,6 +201,7 @@ export default function AdminAnnouncementsPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    lastImageUploadFailedRef.current = false;
 
     try {
       const coverImage = coverFile ? await resolveImage(coverFile, "covers") : editing?.cover_image ?? coverPreview ?? null;
@@ -217,7 +233,12 @@ export default function AdminAnnouncementsPage() {
         priority: "medium" as const,
       };
 
-      if (supabase) {
+      // An item that only exists in the local fallback was never actually written to
+      // Supabase (RLS likely rejected it) — updating it there would silently match
+      // zero rows and look like a success, so go straight to the local store instead.
+      const isLocalOnlyEdit = editing ? readManualAnnouncements().some((item) => item.id === editing.id) : false;
+
+      if (supabase && !isLocalOnlyEdit && !lastImageUploadFailedRef.current) {
         try {
           if (editing) {
             const { error } = await supabase.from("announcements").update(payload).eq("id", editing.id);
@@ -278,31 +299,40 @@ export default function AdminAnnouncementsPage() {
 
   const handleTogglePublish = async (a: Announcement) => {
     const nextStatus = a.status === "published" ? "draft" : "published";
+    const isLocalOnly = readManualAnnouncements().some((item) => item.id === a.id);
 
-    if (!supabase) {
-      setAnnouncements(updateManualAnnouncements((current) => current.map((i) => (i.id === a.id ? { ...i, status: nextStatus } : i))));
+    if (!supabase || isLocalOnly) {
+      updateManualAnnouncements((current) => current.map((i) => (i.id === a.id ? { ...i, status: nextStatus } : i)));
+      if (!supabase) setSupabaseUnavailable(true);
+      await refresh();
       return;
     }
 
     const { error } = await supabase.from("announcements").update({ status: nextStatus }).eq("id", a.id);
     if (error) {
-      setAnnouncements(updateManualAnnouncements((current) => current.map((i) => (i.id === a.id ? { ...i, status: nextStatus } : i))));
+      updateManualAnnouncements((current) => current.map((i) => (i.id === a.id ? { ...i, status: nextStatus } : i)));
       setSupabaseUnavailable(true);
+      await refresh();
       return;
     }
     await refresh();
   };
 
   const handleTogglePin = async (a: Announcement) => {
-    if (!supabase) {
-      setAnnouncements(updateManualAnnouncements((current) => current.map((i) => (i.id === a.id ? { ...i, pinned: !a.pinned } : i))));
+    const isLocalOnly = readManualAnnouncements().some((item) => item.id === a.id);
+
+    if (!supabase || isLocalOnly) {
+      updateManualAnnouncements((current) => current.map((i) => (i.id === a.id ? { ...i, pinned: !a.pinned } : i)));
+      if (!supabase) setSupabaseUnavailable(true);
+      await refresh();
       return;
     }
 
     const { error } = await supabase.from("announcements").update({ pinned: !a.pinned }).eq("id", a.id);
     if (error) {
-      setAnnouncements(updateManualAnnouncements((current) => current.map((i) => (i.id === a.id ? { ...i, pinned: !a.pinned } : i))));
+      updateManualAnnouncements((current) => current.map((i) => (i.id === a.id ? { ...i, pinned: !a.pinned } : i)));
       setSupabaseUnavailable(true);
+      await refresh();
       return;
     }
     await refresh();
@@ -311,6 +341,15 @@ export default function AdminAnnouncementsPage() {
   const handleDelete = async (id: string) => {
     if (!supabase) {
       setAnnouncements(updateManualAnnouncements((current) => current.filter((i) => i.id !== id)));
+      return;
+    }
+
+    // Local-only entries were never written to Supabase — deleting them there would
+    // silently match zero rows, so remove from the local store directly instead.
+    const isLocalOnly = readManualAnnouncements().some((item) => item.id === id);
+    if (isLocalOnly) {
+      updateManualAnnouncements((current) => current.filter((i) => i.id !== id));
+      await refresh();
       return;
     }
 

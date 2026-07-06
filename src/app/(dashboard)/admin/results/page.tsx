@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Edit, Plus, Save, Trash2, Trophy, X } from "lucide-react";
 import { createClientOrNull, hasValidSupabaseEnv } from "@/lib/supabase/client";
 import { createManualResultat, readManualResultats, updateManualResultats } from "@/lib/local-resultats";
+import { mergeById } from "@/lib/utils";
 import type { Resultat } from "@/types";
 
 type FormState = {
@@ -46,7 +47,7 @@ export default function ResultatsPage() {
       .select("id, name, note, rang, section, annee_universitaire, created_at")
       .order("created_at", { ascending: false });
 
-    if (error || !data) {
+    if (error) {
       setSupabaseUnavailable(true);
       setResultats(readManualResultats());
       setLoading(false);
@@ -54,7 +55,7 @@ export default function ResultatsPage() {
     }
 
     setSupabaseUnavailable(false);
-    setResultats(data);
+    setResultats(mergeById(data ?? [], readManualResultats()));
     setLoading(false);
   }, [supabase]);
 
@@ -100,7 +101,12 @@ export default function ResultatsPage() {
         annee_universitaire: form.annee_universitaire.trim(),
       };
 
-      if (supabase) {
+      // An item that only exists in the local fallback was never actually written to
+      // Supabase (RLS likely rejected it) — updating it there would silently match
+      // zero rows and look like a success, so go straight to the local store instead.
+      const isLocalOnlyEdit = editing ? readManualResultats().some((item) => item.id === editing.id) : false;
+
+      if (supabase && !isLocalOnlyEdit) {
         try {
           if (editing) {
             const { error } = await supabase.from("resultats").update(payload).eq("id", editing.id);
@@ -153,6 +159,15 @@ export default function ResultatsPage() {
       const savedResultats = updateManualResultats((current) => current.filter((item) => item.id !== id));
       setResultats(savedResultats);
       setSupabaseUnavailable(true);
+      return;
+    }
+
+    // Local-only entries were never written to Supabase — deleting them there would
+    // silently match zero rows, so remove from the local store directly instead.
+    const isLocalOnly = readManualResultats().some((item) => item.id === id);
+    if (isLocalOnly) {
+      updateManualResultats((current) => current.filter((item) => item.id !== id));
+      await refreshResultats();
       return;
     }
 

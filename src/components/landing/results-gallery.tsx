@@ -5,6 +5,7 @@ import { motion, useInView } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { readManualResults } from "@/lib/local-results";
 import { createClientOrNull, hasValidSupabaseEnv } from "@/lib/supabase/client";
+import { mergeById } from "@/lib/utils";
 import type { Result } from "@/types";
 
 const placeholderResults: Result[] = [
@@ -96,13 +97,17 @@ export default function ResultsGallery() {
 
       if (!active) return;
 
-      if (error || !data || data.length === 0) {
+      if (error) {
         const manual = readManualResults();
         setResults(manual.length > 0 ? manual : placeholderResults);
         return;
       }
 
-      setResults(data);
+      // Merge in anything saved only to the local fallback (e.g. an admin write
+      // Supabase RLS rejected because there's no real authenticated admin session yet).
+      const manual = readManualResults();
+      const combined = mergeById(data ?? [], manual);
+      setResults(combined.length > 0 ? combined : placeholderResults);
     })();
 
     return () => {

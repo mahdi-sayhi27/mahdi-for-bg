@@ -1,17 +1,16 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Users, Trophy, MessageSquare, BookOpen, TrendingUp, Activity } from "lucide-react";
+import { Trophy, MessageSquare, BookOpen, TrendingUp, Activity, Bell } from "lucide-react";
 
 const statsCards = [
-  { label: "Total Étudiants", value: "524", change: "+12%", icon: Users, color: "sky" },
   { label: "Résultats Publiés", value: "156", change: "+8%", icon: Trophy, color: "cyan" },
   { label: "Témoignages", value: "48", change: "+3", icon: MessageSquare, color: "blue" },
+  { label: "Annonces", value: "12", change: "+2", icon: Bell, color: "sky" },
   { label: "Cours Actifs", value: "2", change: "BG1 & BG2", icon: BookOpen, color: "indigo" },
 ];
 
 const recentActivity = [
-  { action: "Nouvel étudiant inscrit", name: "Ahmed Ben Ali", time: "Il y a 2 min", type: "student" },
   { action: "Témoignage soumis", name: "Sara Mansouri", time: "Il y a 15 min", type: "testimonial" },
   { action: "Résultat ajouté", name: "Mohamed Trabelsi — 18/20", time: "Il y a 1h", type: "result" },
   { action: "Annonce publiée", name: "Examens blancs", time: "Il y a 3h", type: "announcement" },

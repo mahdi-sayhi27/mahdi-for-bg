@@ -3,10 +3,11 @@
 // ============================================
 
 // --- Admin Credentials ---
-// Default admin login (change in production via Supabase dashboard)
+// Read from env vars (set in .env.local, which is gitignored) so the real login
+// is never committed to the repo. Falls back to an obvious placeholder if unset.
 export const ADMIN_CREDENTIALS = {
-  email: "admin@mathspourbg.tn",
-  password: "MathsBG@2024!",
+  email: process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "admin@example.com",
+  password: process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "change-me",
 } as const;
 
 import {
@@ -40,6 +41,7 @@ export const NAV_LINKS = [
   { href: "#results", label: "Résultats" },
   { href: "#faq", label: "FAQ" },
   { href: "#contact", label: "Contact" },
+  { href: "#galerie", label: "Galerie" },
 ] as const;
 
 export const STATS: StatItem[] = [

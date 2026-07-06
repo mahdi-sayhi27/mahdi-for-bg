@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
-  Users,
   Trophy,
   MessageSquare,
   Images,
@@ -23,7 +22,6 @@ import { clearLocalAdminSession, hasLocalAdminSession } from "@/lib/local-auth";
 
 const sidebarLinks = [
   { href: "/admin", label: "Vue d'ensemble", icon: LayoutDashboard },
-  { href: "/admin/students", label: "Étudiants", icon: Users },
   { href: "/admin/temoignages", label: "Témoignages", icon: MessageSquare },
   { href: "/admin/results", label: "Résultats", icon: Trophy },
   { href: "/admin/testimonials", label: "Galerie", icon: Images },
@@ -41,6 +39,7 @@ export default function AdminLayout({
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [sessionWarning, setSessionWarning] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -56,7 +55,10 @@ export default function AdminLayout({
       }
 
       if (hasLocalAdminSession()) {
-        if (active) setAuthorized(true);
+        if (active) {
+          setAuthorized(true);
+          setSessionWarning(window.sessionStorage?.getItem("maths-pour-bg:supabase-session-warning") ?? null);
+        }
         return;
       }
 
@@ -180,7 +182,14 @@ export default function AdminLayout({
       </AnimatePresence>
 
       <main className="flex-1 lg:ml-72 pt-16 lg:pt-0">
-        <div className="p-4 sm:p-6 lg:p-8">{children}</div>
+        <div className="p-4 sm:p-6 lg:p-8">
+          {sessionWarning && (
+            <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4 text-yellow-100 text-sm">
+              {sessionWarning}
+            </div>
+          )}
+          {children}
+        </div>
       </main>
     </div>
   );

@@ -44,16 +44,26 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // The admin login page falls back to a cookie-based "local admin" session
+  // (see src/lib/local-auth.ts) when there's no real Supabase Auth account yet.
+  // It only ever grants access to /admin, never /student.
+  const isLocalAdmin = request.cookies.get("mpb_local_admin")?.value === "1";
+
+  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin");
+  const isStudentRoute = request.nextUrl.pathname.startsWith("/student");
+
   // Protect dashboard routes
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/forgot-password");
 
-  const isDashboardRoute =
-    request.nextUrl.pathname.startsWith("/student") ||
-    request.nextUrl.pathname.startsWith("/admin");
+  if (!user && isStudentRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
 
-  if (!user && isDashboardRoute) {
+  if (!user && isAdminRoute && !isLocalAdmin) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -65,8 +75,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Protect admin routes
-  if (user && request.nextUrl.pathname.startsWith("/admin")) {
+  // Protect admin routes (skip the role check for the local-admin cookie fallback —
+  // there's no real profile row backing it).
+  if (user && isAdminRoute) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")

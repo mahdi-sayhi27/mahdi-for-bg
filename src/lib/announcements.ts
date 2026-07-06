@@ -1,6 +1,7 @@
 import { createClientOrNull, hasValidSupabaseEnv } from "@/lib/supabase/client";
 import { readManualAnnouncements } from "@/lib/local-announcements";
 import { PLACEHOLDER_ANNOUNCEMENTS } from "@/constants";
+import { mergeById } from "@/lib/utils";
 import type { Announcement } from "@/types";
 
 const ANNOUNCEMENT_COLUMNS =
@@ -28,13 +29,18 @@ export async function fetchPublishedAnnouncements(): Promise<{
     .eq("status", "published")
     .order("publish_date", { ascending: false });
 
-  if (error || !data) {
+  if (error) {
     const manual = readManualAnnouncements();
     const source = manual.length > 0 ? manual : PLACEHOLDER_ANNOUNCEMENTS;
     return { announcements: filterPublished(source), supabaseUnavailable: true };
   }
 
-  return { announcements: filterPublished(data as Announcement[]), supabaseUnavailable: false };
+  // Merge in anything saved only to the local fallback (e.g. an admin write that
+  // Supabase RLS rejected because there's no real authenticated admin session yet).
+  const manual = readManualAnnouncements();
+  const combined = mergeById((data ?? []) as Announcement[], manual);
+
+  return { announcements: filterPublished(combined), supabaseUnavailable: false };
 }
 
 /** Admin-facing: every announcement regardless of status. */
@@ -56,11 +62,14 @@ export async function fetchAllAnnouncements(): Promise<{
     .select(ANNOUNCEMENT_COLUMNS)
     .order("created_at", { ascending: false });
 
-  if (error || !data) {
+  if (error) {
     return { announcements: readManualAnnouncements(), supabaseUnavailable: true };
   }
 
-  return { announcements: data as Announcement[], supabaseUnavailable: false };
+  const manual = readManualAnnouncements();
+  const combined = mergeById((data ?? []) as Announcement[], manual);
+
+  return { announcements: combined, supabaseUnavailable: false };
 }
 
 function filterPublished(announcements: Announcement[]) {

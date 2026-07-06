@@ -25,6 +25,8 @@ export default function LoginPage() {
 
     // Only the admin account can log in.
     if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
+      let supabaseSessionFailed = false;
+
       if (hasValidSupabaseEnv() && supabase) {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
@@ -32,13 +34,26 @@ export default function LoginPage() {
         });
 
         if (signInError) {
-          console.error(signInError);
+          console.warn("No real Supabase session for the admin account yet — using local admin session instead:", signInError.message);
+          supabaseSessionFailed = true;
         }
       }
 
-      // Local-mode fallback session flag, used by the admin layout guard
-      // when Supabase isn't configured (no real auth cookie to check server-side).
+      // Cookie-based fallback session (see src/lib/local-auth.ts): lets the proxy
+      // (src/proxy.ts) grant /admin access even without a real Supabase Auth session.
       setLocalAdminSession();
+
+      if (supabaseSessionFailed) {
+        // Warn instead of blocking: the panel still opens via the local session,
+        // but Supabase-backed features (image uploads, etc.) need a real auth.users
+        // account for this email — RLS will reject those requests without it.
+        window.sessionStorage?.setItem(
+          "maths-pour-bg:supabase-session-warning",
+          "Le compte admin n'existe pas encore dans Supabase Auth. Les fonctionnalités liées à Supabase (upload d'images, etc.) ne fonctionneront pas tant qu'il n'est pas créé.",
+        );
+      } else {
+        window.sessionStorage?.removeItem("maths-pour-bg:supabase-session-warning");
+      }
 
       setLoading(false);
       router.push("/admin");

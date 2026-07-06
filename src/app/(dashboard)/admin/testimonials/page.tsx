@@ -6,6 +6,7 @@ import Image from "next/image";
 import { CheckCircle, Edit, ImagePlus, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import { createClientOrNull, hasValidSupabaseEnv } from "@/lib/supabase/client";
 import { createManualTestimonial, readManualTestimonials, updateManualTestimonials } from "@/lib/local-testimonials";
+import { mergeById } from "@/lib/utils";
 import type { Testimonial } from "@/types";
 
 type FormState = {
@@ -41,7 +42,7 @@ export default function TestimonialsPage() {
       .select("id, student_name, photo_url, rating, comment, specialty, approved, created_at")
       .order("created_at", { ascending: false });
 
-    if (error || !data) {
+    if (error) {
       setSupabaseUnavailable(true);
       setTestimonials(readManualTestimonials());
       setLoading(false);
@@ -49,7 +50,7 @@ export default function TestimonialsPage() {
     }
 
     setSupabaseUnavailable(false);
-    setTestimonials(data);
+    setTestimonials(mergeById(data ?? [], readManualTestimonials()));
     setLoading(false);
   }, [supabase]);
 
@@ -130,8 +131,22 @@ export default function TestimonialsPage() {
 
     try {
       let photoUrl = editing?.photo_url ?? null;
+      // If the Supabase Storage upload fails (e.g. RLS rejects it because there's no
+      // real authenticated admin session), fall back to embedding the image as a data
+      // URL in the local store instead of aborting the whole save.
+      let uploadFailed = false;
       if (selectedImage) {
-        photoUrl = supabase ? await uploadImage(selectedImage) : await readFileAsDataUrl(selectedImage);
+        if (supabase) {
+          try {
+            photoUrl = await uploadImage(selectedImage);
+          } catch (uploadError) {
+            console.warn("Supabase image upload failed, saving locally instead:", uploadError);
+            photoUrl = await readFileAsDataUrl(selectedImage);
+            uploadFailed = true;
+          }
+        } else {
+          photoUrl = await readFileAsDataUrl(selectedImage);
+        }
       }
 
       const payload = {
@@ -143,7 +158,12 @@ export default function TestimonialsPage() {
         photo_url: photoUrl,
       };
 
-      if (supabase) {
+      // An item that only exists in the local fallback was never actually written to
+      // Supabase (RLS likely rejected it) — updating it there would silently match
+      // zero rows and look like a success, so go straight to the local store instead.
+      const isLocalOnlyEdit = editing ? readManualTestimonials().some((item) => item.id === editing.id) : false;
+
+      if (supabase && !isLocalOnlyEdit && !uploadFailed) {
         try {
           if (editing) {
             const { error } = await supabase.from("testimonials").update(payload).eq("id", editing.id);
@@ -198,14 +218,18 @@ export default function TestimonialsPage() {
   };
 
   const handleToggleApproval = async (testimonial: Testimonial) => {
-    if (!supabase) {
-      const savedTestimonials = updateManualTestimonials((current) =>
+    // Local-only entries were never written to Supabase — updating them there would
+    // silently match zero rows, so update the local store directly instead.
+    const isLocalOnly = readManualTestimonials().some((item) => item.id === testimonial.id);
+
+    if (!supabase || isLocalOnly) {
+      updateManualTestimonials((current) =>
         current.map((item) =>
           item.id === testimonial.id ? { ...item, approved: !testimonial.approved } : item,
         ),
       );
-      setTestimonials(savedTestimonials);
-      setSupabaseUnavailable(true);
+      if (!supabase) setSupabaseUnavailable(true);
+      await refreshTestimonials();
       return;
     }
 
@@ -233,6 +257,15 @@ export default function TestimonialsPage() {
       const savedTestimonials = updateManualTestimonials((current) => current.filter((item) => item.id !== id));
       setTestimonials(savedTestimonials);
       setSupabaseUnavailable(true);
+      return;
+    }
+
+    // Local-only entries were never written to Supabase — deleting them there would
+    // silently match zero rows, so remove from the local store directly instead.
+    const isLocalOnly = readManualTestimonials().some((item) => item.id === id);
+    if (isLocalOnly) {
+      updateManualTestimonials((current) => current.filter((item) => item.id !== id));
+      await refreshTestimonials();
       return;
     }
 
