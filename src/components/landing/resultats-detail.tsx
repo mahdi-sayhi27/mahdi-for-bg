@@ -3,39 +3,33 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { readManualResultats } from "@/lib/local-resultats";
+import { readManualDetails } from "@/lib/local-details";
 import { createClientOrNull, hasValidSupabaseEnv } from "@/lib/supabase/client";
 import { mergeById } from "@/lib/utils";
-import type { Resultat } from "@/types";
+import type { Detail } from "@/types";
 
-const placeholderResultats: Resultat[] = [
-  { id: "1", name: "Ahmed Ben Ali", note: "18/20", rang: "2ème / 32", section: "BG1", annee_universitaire: "2025 - 2026", created_at: "2025-01-01T00:00:00.000Z" },
-  { id: "2", name: "Sara Mansouri", note: "19/20", rang: "1ère / 30", section: "BG2", annee_universitaire: "2025 - 2026", created_at: "2025-01-01T00:00:00.000Z" },
-  { id: "3", name: "Mohamed Trabelsi", note: "17/20", rang: "5ème / 32", section: "BG1", annee_universitaire: "2025 - 2026", created_at: "2025-01-01T00:00:00.000Z" },
-  { id: "4", name: "Yasmine Bouazizi", note: "18.5/20", rang: "3ème / 30", section: "BG2", annee_universitaire: "2025 - 2026", created_at: "2025-01-01T00:00:00.000Z" },
-  { id: "5", name: "Karim Hammami", note: "16/20", rang: "8ème / 32", section: "BG1", annee_universitaire: "2025 - 2026", created_at: "2025-01-01T00:00:00.000Z" },
-  { id: "6", name: "Ines Chaabane", note: "19.5/20", rang: "1ère / 30", section: "BG2", annee_universitaire: "2025 - 2026", created_at: "2025-01-01T00:00:00.000Z" },
+const placeholderDetails: Detail[] = [
+  { id: "1", nom: "Ben Ali", prenom: "Ahmed", rang: "2ème / 32", created_at: "2025-01-01T00:00:00.000Z" },
+  { id: "2", nom: "Mansouri", prenom: "Sara", rang: "1ère / 30", created_at: "2025-01-01T00:00:00.000Z" },
+  { id: "3", nom: "Trabelsi", prenom: "Mohamed", rang: "5ème / 32", created_at: "2025-01-01T00:00:00.000Z" },
+  { id: "4", nom: "Bouazizi", prenom: "Yasmine", rang: "3ème / 30", created_at: "2025-01-01T00:00:00.000Z" },
+  { id: "5", nom: "Hammami", prenom: "Karim", rang: "8ème / 32", created_at: "2025-01-01T00:00:00.000Z" },
+  { id: "6", nom: "Chaabane", prenom: "Ines", rang: "1ère / 30", created_at: "2025-01-01T00:00:00.000Z" },
 ];
-
-function splitName(fullName: string) {
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length < 2) return { prenom: parts[0] ?? "", nom: "" };
-  return { prenom: parts[0], nom: parts.slice(1).join(" ") };
-}
 
 export default function ResultatsDetail() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const trackRef = useRef<HTMLDivElement>(null);
-  const [resultats, setResultats] = useState<Resultat[]>(placeholderResultats);
+  const [details, setDetails] = useState<Detail[]>(placeholderDetails);
 
   useEffect(() => {
     let active = true;
 
     (async () => {
       if (!hasValidSupabaseEnv()) {
-        const manual = readManualResultats();
-        if (active) setResultats(manual.length > 0 ? manual : placeholderResultats);
+        const manual = readManualDetails();
+        if (active) setDetails(manual.length > 0 ? manual : placeholderDetails);
         return;
       }
 
@@ -43,21 +37,21 @@ export default function ResultatsDetail() {
       if (!supabase) return;
 
       const { data, error } = await supabase
-        .from("resultats")
-        .select("id, name, note, rang, section, annee_universitaire, created_at")
+        .from("details")
+        .select("id, nom, prenom, rang, created_at")
         .order("created_at", { ascending: false });
 
       if (!active) return;
 
       if (error) {
-        const manual = readManualResultats();
-        setResultats(manual.length > 0 ? manual : placeholderResultats);
+        const manual = readManualDetails();
+        setDetails(manual.length > 0 ? manual : placeholderDetails);
         return;
       }
 
-      const manual = readManualResultats();
+      const manual = readManualDetails();
       const combined = mergeById(data ?? [], manual);
-      setResultats(combined.length > 0 ? combined : placeholderResultats);
+      setDetails(combined.length > 0 ? combined : placeholderDetails);
     })();
 
     return () => {
@@ -132,7 +126,7 @@ export default function ResultatsDetail() {
             Classement <span className="text-gradient">détaillé</span>
           </h2>
           <p className="text-gray-400 text-lg">
-            Nom, prénom, note et rang de nos étudiants
+            Nom, prénom et rang de nos étudiants
           </p>
         </motion.div>
 
@@ -158,33 +152,29 @@ export default function ResultatsDetail() {
             ref={trackRef}
             className="flex gap-4 sm:gap-6 overflow-x-auto lg:snap-x lg:snap-mandatory premium-scroll-x pb-6 px-1 -mx-1"
           >
-            {resultats.map((result, i) => {
-              const { prenom, nom } = splitName(result.name);
-              return (
-                <motion.div
-                  key={result.id}
-                  data-card
-                  initial={{ opacity: 0, x: 40 }}
-                  animate={isInView ? { opacity: 1, x: 0 } : {}}
-                  transition={{ duration: 0.5, delay: i * 0.1 }}
-                  className="relative shrink-0 w-[200px] sm:w-[260px] lg:w-[300px] snap-center"
-                >
-                  <div
-                    className="absolute inset-0 rounded-2xl bg-[#29C8E6] translate-x-[8px] translate-y-[8px] sm:translate-x-[14px] sm:translate-y-[14px]"
-                    aria-hidden="true"
-                  />
+            {details.map((detail, i) => (
+              <motion.div
+                key={detail.id}
+                data-card
+                initial={{ opacity: 0, x: 40 }}
+                animate={isInView ? { opacity: 1, x: 0 } : {}}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                className="relative shrink-0 w-[200px] sm:w-[260px] lg:w-[300px] snap-center"
+              >
+                <div
+                  className="absolute inset-0 rounded-2xl bg-[#29C8E6] translate-x-[8px] translate-y-[8px] sm:translate-x-[14px] sm:translate-y-[14px]"
+                  aria-hidden="true"
+                />
 
-                  <div className="relative h-full rounded-2xl border-2 border-[#29C8E6] bg-[#F5F2F2] p-4 sm:p-6 shadow-[0_12px_35px_rgba(0,0,0,0.08)] transition-all duration-[350ms] ease-out hover:-translate-y-1.5 hover:shadow-[0_20px_45px_rgba(0,0,0,0.14)]">
-                    <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-[#333333]">
-                      <p><span className="text-[#8A8A8A]">Nom :</span> <span className="font-semibold">{nom || "—"}</span></p>
-                      <p><span className="text-[#8A8A8A]">Prénom :</span> <span className="font-semibold">{prenom || "—"}</span></p>
-                      <p><span className="text-[#8A8A8A]">Note :</span> <span className="font-bold text-[#F26A44]">{result.note}</span></p>
-                      <p><span className="text-[#8A8A8A]">Rang :</span> <span className="font-semibold">{result.rang}</span></p>
-                    </div>
+                <div className="relative h-full rounded-2xl border-2 border-[#29C8E6] bg-[#F5F2F2] p-4 sm:p-6 shadow-[0_12px_35px_rgba(0,0,0,0.08)] transition-all duration-[350ms] ease-out hover:-translate-y-1.5 hover:shadow-[0_20px_45px_rgba(0,0,0,0.14)]">
+                  <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-[#333333]">
+                    <p><span className="text-[#8A8A8A]">Nom :</span> <span className="font-semibold">{detail.nom}</span></p>
+                    <p><span className="text-[#8A8A8A]">Prénom :</span> <span className="font-semibold">{detail.prenom}</span></p>
+                    <p><span className="text-[#8A8A8A]">Rang :</span> <span className="font-semibold">{detail.rang}</span></p>
                   </div>
-                </motion.div>
-              );
-            })}
+                </div>
+              </motion.div>
+            ))}
           </div>
         </div>
       </div>

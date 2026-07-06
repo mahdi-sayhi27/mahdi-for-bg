@@ -115,6 +115,25 @@ create policy "Admins manage resultats" on public.resultats for all using (
 );
 
 -- ============================================
+-- DETAILS — home page "Classement détaillé" cards
+-- (nom, prénom, rang — managed independently from RESULTATS)
+-- ============================================
+create table public.details (
+  id uuid default uuid_generate_v4() primary key,
+  nom text not null,
+  prenom text not null,
+  rang text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.details enable row level security;
+
+create policy "Details are public" on public.details for select using (true);
+create policy "Admins manage details" on public.details for all using (
+  exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+);
+
+-- ============================================
 -- ANNOUNCEMENTS — News Center
 -- ============================================
 create table public.announcements (

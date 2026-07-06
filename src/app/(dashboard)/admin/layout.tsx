@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   BarChart3,
+  ListOrdered,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClientOrNull, hasValidSupabaseEnv } from "@/lib/supabase/client";
@@ -24,6 +25,7 @@ const sidebarLinks = [
   { href: "/admin", label: "Vue d'ensemble", icon: LayoutDashboard },
   { href: "/admin/temoignages", label: "Témoignages", icon: MessageSquare },
   { href: "/admin/results", label: "Résultats", icon: Trophy },
+  { href: "/admin/details", label: "Détails", icon: ListOrdered },
   { href: "/admin/testimonials", label: "Galerie", icon: Images },
   { href: "/admin/announcements", label: "Annonces", icon: Bell },
   { href: "/admin/analytics", label: "Analytique", icon: BarChart3 },

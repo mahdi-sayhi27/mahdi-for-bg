@@ -35,6 +35,15 @@ export interface Resultat {
   created_at: string;
 }
 
+/** Homepage "Classement détaillé" cards — managed independently from Resultat. */
+export interface Detail {
+  id: string;
+  nom: string;
+  prenom: string;
+  rang: string;
+  created_at: string;
+}
+
 export type AnnouncementCategory =
   | "News"
   | "Event"
